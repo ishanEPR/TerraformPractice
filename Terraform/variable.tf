@@ -32,6 +32,6 @@ variable "private_subnets" {
 
 variable "public_ip_address" {
     default = "0.0.0.0/0"
-    type = String
+    # type = "String"
   
 }
