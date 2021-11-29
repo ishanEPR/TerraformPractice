@@ -4,7 +4,7 @@ provider "aws" {
     # secret_key = var.secret_key
 }
 module "devvpc" {
-    source            = "../"
+    source            = "../."
     vpc_id            = module.devvpc.vpc_id
     project           = var.project
     environment       = var.environment
@@ -13,4 +13,13 @@ module "devvpc" {
     public_subnets    = var.public_subnets
     private_subnets   = var.private_subnets
 
+}
+
+module "dev_ec2" {
+    source          = "../."
+    subnet_id       = module.devvpc.private_subnets
+    instance_type   = var.instance_type
+    ami             = var.ami
+
+    
 }

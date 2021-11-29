@@ -49,3 +49,13 @@ variable "public_ip_address" {
     type = String
   
 }
+
+variable "ami" {
+    
+    description = "EC2 instances id(ami)"
+}
+
+variable "instance_type" {
+    description = "ec2 instance type"
+  
+}

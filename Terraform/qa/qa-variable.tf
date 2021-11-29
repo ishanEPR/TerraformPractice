@@ -43,3 +43,11 @@ variable "private_subnets" {
     default = ["10.20.20.0/24","10.20.21.0/24"]
   
 }
+variable "ami" {
+    default = "ami-0d718c3d715cec4a7"
+  
+}
+variable "instance_type" {
+    default="t2.micro"
+  
+}
