@@ -1,39 +1,45 @@
 provider "aws" {
-  #  version = "~> 3.0"
+  
    region  = var.region
    access_key = var.access_key
    secret_key = var.secret_key
 
 
-  
+}
+locals {
+  vpc_id=aws_vpc.this.id
+  tag_name=join("-",[var.environment,var.project])
 }
 
 # create vpc(virtual private cloud)
-resource "aws_vpc" "vpc" {
+resource "aws_vpc" "this" {
     cidr_block = var.vpc_cidr_block
-    instance_tenancy = "default"
 
     tags = {
-      "Name" = "vpc"
-      "Location"="Asia Pacific (Mumbai)"
+      "Name" =join("-",[local.tag_name,"vpc"])
+    
     }
   
 }
 
 //create internet gateway
-resource "aws_internet_gateway" "vpc_internet_gateway" {
-  vpc_id = "aws_vpc.vpc.id"
+resource "aws_internet_gateway" "this" {
+  vpc_id = local.vpc_id
 
   tags = {
-    "Name" = "vpc_internet_gateway"
+    "Name" =join("-",[local.tag_name,"internet_gateway"]) 
   }
 
   
 }
 
 //Create Elastic IP
-resource "aws_eip" "elastic_ip" {
+resource "aws_eip" "this" {
   vpc = true
+
+  tags = {
+    "Name" =join("-",[local.tag_name,"elastic_ip"])
+  }
 }
 
 
@@ -45,35 +51,32 @@ data "aws_availability_zones" "availability_zones" {
 
  //create public subnet
 
-resource "aws_subnet" "public_subnets" {
-   
-  //  availability_zone = data.aws_availability_zones.availability_zones.names[0]
+resource "aws_subnet" "public" {         
 
-    count = length(var.public_subnets)
+    count = length(var.public_subnets)>0? length(var.public_subnets):0
     availability_zone = var.availability_zones_list[count.index]
     cidr_block =var.public_subnets[count.index]
-    vpc_id = "aws_vpc.vpc.id"
+    vpc_id = local.vpc_id
     map_public_ip_on_launch = true
 
     tags = {
-      "Name" ="public_subnet-${count.index+1}"
+      "Name" =join("-",[local.tag_name,"public","subnet","${count.index+1}"])
     }
   
 }
 
 
 # create private subnet
-resource "aws_subnet" "private_subnets" {
+resource "aws_subnet" "private" {
   
-    count = length(var.private_subnets)
-    # availability_zone = data.aws_availability_zones.availability_zones.names[0]
+    count = length(var.private_subnets)>0 ? length(var.private_subnets):0
     availability_zone = var.availability_zones_list[count.index]
     cidr_block =var.private_subnets[count.index]
-    vpc_id = "aws_vpc.vpc.id"
+    vpc_id = aws_vpc.vpc.id
   
 
     tags = {
-      "Name" ="private_subnet-${count.index+1}"
+      "Name" =join("-",[local.tag_name,"private","subnet","${count.index+1}"])
     }
   
 }
@@ -81,66 +84,71 @@ resource "aws_subnet" "private_subnets" {
 
 # create NAT Gateway
 
-resource "aws_nat_gateway" "public_vpc_nat_gateway" {
+resource "aws_nat_gateway" "public" {
 
     count = length(var.public_subnets)
-    allocation_id = "aws_eip.elastic_ip.id"
-   // subnet_id = "aws_subnet.public_subnet_ap-south-1a.id"
-   subnet_id = "aws_subnet.public_subnet-${count.index+1}.id"
+    allocation_id = "aws_eip.this[0].id"
+  
+    subnet_id = "aws_subnet.public.*.id"
 
     tags = {
-      "Name" = "public_vpc_nat_gateway-${count.index+1}"
+      "Name" =join("-",[local.tag_name,"public_vpc_nat_gateway"])
     }
   
 }
 
-# resource "aws_nat_gateway" "public_vpc_nat_gateway-1b" {
 
-#     allocation_id = "aws_eip.elastic_ip.id"
-#     subnet_id = "aws_subnet.public_subnet_ap-south-1b.id"
 
-#     tags = {
-#       "Name" = "public_vpc_nat_gateway-1b"
-#     }
-  
-# }
+resource "aws_nat_gateway" "private" {
+   connectivity_type = "private"
+   subnet_id = "aws_subnet.private.*.id"
 
-resource "aws_nat_gateway" "private_vpc_nat_gateway" {
-  connectivity_type = "private"
-  # subnet_id = "aws_subnet.private_subnet_ap-south-1a.id"
-   subnet_id = "aws_subnet.private_subnet-${count.index+1}.id"
+   tags = {
+      "Name" =join("-",[local.tag_name,"private_vpc_nat_gateway"])
+    }
 
 }
 
-
-# resource "aws_nat_gateway" "private_vpc_nat_gateway-1b" {
-#   connectivity_type = "private"
-#   subnet_id = "aws_subnet.private_subnet_ap-south-1b.id"
-
-# }
 
 # Routing
 
-resource "aws_route_table" "vpc_public_route" {
-    vpc_id = "aws_vpc.vpc.id"
+resource "aws_route_table" "public" {
+    vpc_id = local.vpc_id
     route = {
         cidr_block=var.public_ip_address
-        gateway_id="aws_internet_gateway.vpc_internet_gateway.id"
+        gateway_id=aws_internet_gateway.this.id
     }
 
     tags = {
-      "Name" = "vpc_public_route"
+      "Name" = join("-",[local.tag_name,"rt"])
     }
   
 }
 
-resource "aws_default_route_table" "vpc_default_route" {
-
-    default_route_table_id ="aws_vpc.vpc.default_route_table_id" 
-    
-    tags = {
-      "Name" = "vpc_default_route"
-    }
-
+resource "aws_route_table_association" "public" {
+  count = length(var.public_subnets)>0 ? var.public_subnets:0
+  subnet_id = element(aws_subnet.public.*.id ,count.index)
+  route_table_id = aws_route_table.public.id
   
 }
+
+resource "aws_route_table" "private" {
+    vpc_id = local.vpc_id
+    route = {
+        cidr_block=var.public_ip_address
+        nat_gateway_id = aws_nat_gateway.private[0].id
+    }
+
+    tags = {
+      Name = join("-", [local.tag_name, "rt"])
+    }
+  
+}
+
+resource "aws_route_table_association" "private" {
+  count = length(var.private_subnets)>0? var.private_subnets:0
+  subnet_id = element(aws_subnet.private.*.id,count.index)
+  route_table_id =aws_route_table.private.id 
+  
+}
+

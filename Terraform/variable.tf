@@ -3,6 +3,20 @@ variable "access_key" {}
 
 variable "secret_key" {}
 
+variable "environment" {
+    description = "Environment Name"
+    type = string
+    default = "dev"
+  
+}
+
+variable "project" {
+    description = "Name of the project"
+    type = string
+    default = "terraform_practice"
+  
+}
+
 variable "vpc_cidr_block" {
     default = "10.0.0.0/16"
     description = "Vpc cidr block"
@@ -32,6 +46,6 @@ variable "private_subnets" {
 
 variable "public_ip_address" {
     default = "0.0.0.0/0"
-    # type = "String"
+    type = String
   
 }
